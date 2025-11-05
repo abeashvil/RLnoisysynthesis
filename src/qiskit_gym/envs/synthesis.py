@@ -153,7 +153,7 @@ class LinearFunctionGym(LinearFunctionEnv, BaseSynthesisEnv):
         return np.array(input.linear).flatten().astype(int).tolist()
 
 
-# ------------- Linear Function -------------
+# ------------- Linear Function Noisy -------------
 
 from qiskit.circuit.library.generalized_gates import LinearFunction
 
@@ -232,4 +232,5 @@ SYNTH_ENVS = {
     "CliffordEnv": CliffordGym,
     "LinearFunctionEnv": LinearFunctionGym,
     "PermutationEnv": PermutationGym,
+    "LinearFunctionNoisyEnv": LinearFunctionNoisyGym
 }

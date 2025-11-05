@@ -26,7 +26,7 @@ use crate::envs::common::Gate;
 #[derive(Clone)]
 pub struct LFState {
     pub data: Vec<bool>,
-    pub map: HashMap<(i32, i32), f64>,
+    pub map: HashMap<(usize, usize), f32>,
     size: usize,
 }
 
@@ -37,6 +37,7 @@ impl LFState {
         let mut lf = LFState {
             data: vec![false; size * size],
             size,
+            map: HashMap::new(),
         };
         for i in 0..size {
             lf.set(i, i, true);
@@ -44,8 +45,13 @@ impl LFState {
         for i in 0..size {
             for j in 1..size {
                 lf.insert(i, j, 0.0);
+
             }
         }
+        lf.insert(1,2, 0.10);
+        lf.insert(2,1, 0.10);
+
+        lf
     }
 
     // Method to set a value in the LinearFunction
@@ -60,20 +66,23 @@ impl LFState {
         self.data[index]
     }
 
-    fn addNoise(&mut self, row: usize, column: usize, value: bool) {
-        self.map[(row, column)] += value;
+    fn addNoise(&mut self, row: usize, column: usize, value: f32) {
+        *self.map.entry((row, column)).or_insert(0.0) += value;
     }
 
-    fn setNoise(&mut self, row: usize, column: usize, value: bool) {
-        self.map[(row, column)] = value;
-    }
-
-    fn getNoise(&self, row: usize, column: usize) -> bool {
-        self.map[(row, column)]
-    }
-
-    fn insert(&self, row:usize, column:usize, value:usize) -> bool {
+    /// Sets (overwrites) noise value for a given edge
+    fn setNoise(&mut self, row: usize, column: usize, value: f32) {
         self.map.insert((row, column), value);
+    }
+
+    /// Gets the noise value for a given edge, returning 0.0 if not present
+    fn getNoise(&self, row: usize, column: usize) -> f32 {
+        *self.map.get(&(row, column)).unwrap_or(&0.0)
+    }
+
+    /// Inserts a value and returns whether the key was newly inserted
+    fn insert(&mut self, row: usize, column: usize, value: f32) -> bool {
+        self.map.insert((row, column), value).is_none()
     }
     // Method to perform cx between q1 and q2
     fn cx(&mut self, q1: usize, q2: usize) {
@@ -128,7 +137,7 @@ pub struct LinearFunctionNoisy {
     pub gateset: Vec<Gate>,
     pub depth_slope: usize,
     pub max_depth: usize,
-    pub recent_noise: f64
+    pub recent_noise: f32
 }
 
 
@@ -199,28 +208,27 @@ impl Env for LinearFunctionNoisy {
     fn step(&mut self, action: usize)  {
         match self.gateset[action] {
             Gate::CX(q1, q2) => {
-                let noise = 0;
+                let mut noise = 0.0;
                 if self.depth == 0 {
-                    noise = -0.1;
+                    noise = 0.05;
                 } else {
-                    noise = -0.1 / (self.max_depth as f32);
+                    noise = 0.05;
                 }
-
                 self.lf.cx(q1, q2);
                 self.lf.addNoise(q1,q2,noise);
                 self.recent_noise = self.lf.getNoise(q1,q2);
             }
             Gate::SWAP(q1, q2) => {
-                let noise = 0;
+                let mut noise2 = 0.0;
                 if self.depth == 0 {
-                    noise = -0.1;
+                    noise2 = 0.05;
                 } else {
-                    noise = -0.1 / (self.max_depth as f32);
+                    noise2 = 0.05;
                 }
-                noise *= 3;
+                noise2 *= 3.0;
 
                 self.lf.swap(q1, q2);
-                self.lf.addNoise(q1, q2, noise);
+                self.lf.addNoise(q1, q2, noise2);
                 self.recent_noise = self.lf.getNoise(q1,q2);
             }
             _ => {}
@@ -241,7 +249,7 @@ impl Env for LinearFunctionNoisy {
         if self.success {
             1.0
         } else {
-            if self.depth == 0 { -0.5 + self.recent_noise} else { (-0.5/(self.max_depth as f32)) + self.recent_noise }
+            if self.depth == 0 { -0.5 } else { (-0.7 + self.recent_noise)/self.max_depth as f32  }
         }
     }
 
