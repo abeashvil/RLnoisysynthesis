@@ -48,9 +48,6 @@ impl LFState {
 
             }
         }
-        lf.insert(1,2, 0.10);
-        lf.insert(2,1, 0.10);
-
         lf
     }
 
@@ -149,14 +146,21 @@ impl LinearFunctionNoisy {
         depth_slope: usize,
         max_depth: usize,
     ) -> Self {
-        let lf = LFState::new(num_qubits);
+        let  mut lf = LFState::new(num_qubits);
         let success = lf.solved();
+        // let recent_noise = 0.0;
+        // lf.insert(0,1,-100000.0);
+        // lf.insert(1,0,-100000.0);
         let recent_noise = 0.0;
         LinearFunctionNoisy {lf, depth:1, success, difficulty, gateset, depth_slope, max_depth, recent_noise}
     }
     pub fn solved(&self) -> bool {
         self.lf.solved()
     }
+    pub fn addNoise(&mut self, row: usize, column: usize, value: f32) {
+        self.lf.addNoise(row, column, value);
+    }
+
 
 }
 
@@ -210,26 +214,28 @@ impl Env for LinearFunctionNoisy {
             Gate::CX(q1, q2) => {
                 let mut noise = 0.0;
                 if self.depth == 0 {
-                    noise = 0.05;
+                    noise = -0.5;
                 } else {
-                    noise = 0.05;
+                    noise = -0.5;
                 }
                 self.lf.cx(q1, q2);
                 self.lf.addNoise(q1,q2,noise);
                 self.recent_noise = self.lf.getNoise(q1,q2);
+                
             }
             Gate::SWAP(q1, q2) => {
                 let mut noise2 = 0.0;
                 if self.depth == 0 {
-                    noise2 = 0.05;
+                    noise2 = -0.5;
                 } else {
-                    noise2 = 0.05;
+                    noise2 = -0.5;
                 }
                 noise2 *= 3.0;
 
                 self.lf.swap(q1, q2);
                 self.lf.addNoise(q1, q2, noise2);
                 self.recent_noise = self.lf.getNoise(q1,q2);
+                
             }
             _ => {}
         }        
@@ -247,9 +253,9 @@ impl Env for LinearFunctionNoisy {
 
     fn reward(&self) -> f32 {
         if self.success {
-            1.0
+            1.0 
         } else {
-            if self.depth == 0 { -0.5 } else { (-0.7 + self.recent_noise)/self.max_depth as f32  }
+            if self.depth == 0 { -0.5 + self.recent_noise} else { (-0.7 + self.recent_noise)/self.max_depth as f32  }
         }
     }
 
@@ -257,7 +263,14 @@ impl Env for LinearFunctionNoisy {
         self.lf.data.iter()
         .enumerate() // Iterate over the Vec with indices
         .filter_map(|(index, &value)| if value { Some(index) } else { None }) // Collect indices where the value is true
-        .collect()    
+        .collect()  
+    }
+
+    fn obs2(&self,) -> Vec<usize> {
+        self.lf.map.iter()
+        .filter(|(_, &value)| value != 0.0)
+        .map(|(&(r, c), _)| r * 1000 + c)   // or any packing you prefer
+        .collect()
     }
 }
 
