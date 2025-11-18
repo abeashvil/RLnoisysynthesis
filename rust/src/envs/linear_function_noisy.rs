@@ -255,7 +255,7 @@ impl Env for LinearFunctionNoisy {
         if self.success {
             1.0 
         } else {
-            if self.depth == 0 { -0.5 + self.recent_noise} else { (-0.7 + self.recent_noise)/self.max_depth as f32  }
+            if self.depth == 0 { -0.5 + self.recent_noise} else { (-0.5 + self.recent_noise)/self.max_depth as f32  }
         }
     }
 
@@ -266,12 +266,12 @@ impl Env for LinearFunctionNoisy {
         .collect()  
     }
 
-    fn obs2(&self,) -> Vec<usize> {
-        self.lf.map.iter()
-        .filter(|(_, &value)| value != 0.0)
-        .map(|(&(r, c), _)| r * 1000 + c)   // or any packing you prefer
-        .collect()
-    }
+    // fn obs2(&self,) -> Vec<usize> {
+    //     self.lf.map.iter()
+    //     .filter(|(_, &value)| value != 0.0)
+    //     .map(|(&(r, c), _)| r * 1000 + c)   // or any packing you prefer
+    //     .collect()
+    // }
 }
 
 
