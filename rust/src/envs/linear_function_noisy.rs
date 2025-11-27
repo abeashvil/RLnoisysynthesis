@@ -149,8 +149,8 @@ impl LinearFunctionNoisy {
         let  mut lf = LFState::new(num_qubits);
         let success = lf.solved();
         // let recent_noise = 0.0;
-        // lf.insert(0,1,-100000.0);
-        // lf.insert(1,0,-100000.0);
+        lf.insert(0,1,-100000.0);
+        lf.insert(1,0,-100000.0);
         let recent_noise = 0.0;
         LinearFunctionNoisy {lf, depth:1, success, difficulty, gateset, depth_slope, max_depth, recent_noise}
     }
