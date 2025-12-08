@@ -149,10 +149,10 @@ impl LinearFunctionNoisy {
         let  mut lf = LFState::new(num_qubits);
         let success = lf.solved();
         // let recent_noise = 0.0;
-        lf.insert(0,1,-999999999999999999.0);
-        lf.insert(1,0,-999999999999999999.0);
-        lf.insert(0,2,-999999999999999999.0);
-        lf.insert(2,0,-999999999999999999.0);
+        // lf.insert(0,1,-999999999999999999.0);
+        // lf.insert(1,0,-999999999999999999.0);
+        // lf.insert(0,2,-999999999999999999.0);
+        // lf.insert(2,0,-999999999999999999.0);
         let recent_noise = 0.0;
         LinearFunctionNoisy {lf, depth:1, success, difficulty, gateset, depth_slope, max_depth, recent_noise}
     }
@@ -257,7 +257,7 @@ impl Env for LinearFunctionNoisy {
         if self.success {
             1.0 
         } else {
-            if self.depth == 0 { -0.5 + self.recent_noise} else { ((-0.5)/self.max_depth as f32) + self.recent_noise }
+            if self.depth == 0 { -0.5 + self.recent_noise} else { ((-0.5  + self.recent_noise )/self.max_depth as f32)}
         }
     }
 
