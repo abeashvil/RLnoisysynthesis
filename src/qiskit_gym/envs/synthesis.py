@@ -52,6 +52,7 @@ class BaseSynthesisEnv(ABC):
             coupling_map = list(coupling_map.get_edges())
         coupling_map = sorted(coupling_map)
 
+
         num_qubits = max(max(qubits) for qubits in coupling_map) + 1
 
         gateset = []
@@ -153,8 +154,6 @@ class LinearFunctionGym(LinearFunctionEnv, BaseSynthesisEnv):
         return np.array(input.linear).flatten().astype(int).tolist()
 
 
-# ------------- Linear Function Noisy -------------
-
 from qiskit.circuit.library.generalized_gates import LinearFunction
 
 LinearFunctionNoisyEnv = gym_adapter(qiskit_gym_rs.LinearFunctionNoisyEnv)
@@ -167,19 +166,31 @@ class LinearFunctionNoisyGym(LinearFunctionNoisyEnv, BaseSynthesisEnv):
     def __init__(
         self,
         num_qubits: int,
-        gateset: List[Tuple[str, List[int]]],
         difficulty: int = 1,
+        noise_model: dict | None= None,
+        gateset: list = None,
         depth_slope: int = 2,
         max_depth: int = 128,
     ):
-        super().__init__(**{
-            "num_qubits": num_qubits,
-            "difficulty": difficulty,
-            "gateset": gateset,
-            "depth_slope": depth_slope,
-            "max_depth": max_depth,
-        })
-    
+        # ✅ Normalize noise model BEFORE passing to Rust
+        # noise_model = {
+        #     tuple(sorted(k)): float(v) for k, v in (noise_model or {}).items()
+        # }
+
+        # ✅ IMPORTANT: pass noise_model to Rust env
+        super().__init__(
+            num_qubits,
+            difficulty,
+            noise_model,
+            gateset,
+            depth_slope,
+            max_depth,
+            
+        )
+
+        # (optional) keep a Python copy if you want
+        self.noise_model = noise_model
+
     def get_state(self, input: QuantumCircuit | LinearFunction):
         if isinstance(input, QuantumCircuit):
             input = LinearFunction(input.inverse())
@@ -187,6 +198,36 @@ class LinearFunctionNoisyGym(LinearFunctionNoisyEnv, BaseSynthesisEnv):
             input = LinearFunction(Clifford(input).adjoint())
         return np.array(input.linear).flatten().astype(int).tolist()
 
+    @classmethod
+    def from_coupling_map_noisy(
+        cls,
+        coupling_map,
+        basis_gates=None,
+        noise_model=None,
+        difficulty=1,
+        depth_slope=2,
+        max_depth=128,
+    ):
+        if basis_gates is None:
+            basis_gates = tuple(cls.allowed_gates)
+
+        if isinstance(coupling_map, CouplingMap):
+            coupling_map = list(coupling_map.get_edges())
+        coupling_map = sorted(coupling_map)
+
+        num_qubits = max(max(q) for q in coupling_map) + 1
+
+        gateset = []
+        for gate_name in basis_gates:
+            if gate_name in ONE_Q_GATES:
+                for q in range(num_qubits):
+                    gateset.append((gate_name, (q,)))
+            else:
+                for q1, q2 in coupling_map:
+                    gateset.append((gate_name, (q1, q2)))
+
+        # ✅ Pass only positional args to constructor
+        return cls(num_qubits, difficulty, noise_model, gateset, depth_slope, max_depth)
 
 
 

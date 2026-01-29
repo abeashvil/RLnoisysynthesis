@@ -19,6 +19,7 @@ use twisterl::rl::env::Env;
 use twisterl::python_interface::env::{PyBaseEnv, get_env_ref, get_env_mut};
 use std::collections::HashMap;
 
+pub type NoiseModel = HashMap<(usize, usize), f32>;
 
 use crate::envs::common::Gate;
 
@@ -30,6 +31,11 @@ pub struct LFState {
     size: usize,
 }
 
+enum Gate {
+    CX(usize, usize),
+    SWAP(usize, usize),
+    // other variants
+}
 // Here are some functions to manipulate the internal representation
 impl LFState {
     // Constructor to create a new LinearFunction
@@ -41,12 +47,6 @@ impl LFState {
         };
         for i in 0..size {
             lf.set(i, i, true);
-        }
-        for i in 0..size {
-            for j in 1..size {
-                lf.insert(i, j, 0.0);
-
-            }
         }
         lf
     }
@@ -129,7 +129,7 @@ pub struct LinearFunctionNoisy {
     pub lf: LFState,
     pub depth: usize,
     pub success: bool,
-
+    pub noise_model: NoiseModel,
     pub difficulty: usize,
     pub gateset: Vec<Gate>,
     pub depth_slope: usize,
@@ -142,19 +142,23 @@ impl LinearFunctionNoisy {
     pub fn new(
         num_qubits: usize,
         difficulty: usize,
+        mut noise_model: NoiseModel,
         gateset: Vec<Gate>,
         depth_slope: usize,
         max_depth: usize,
     ) -> Self {
         let  mut lf = LFState::new(num_qubits);
         let success = lf.solved();
-        // let recent_noise = 0.0;
-        // lf.insert(0,1,-999999999999999999.0);
-        // lf.insert(1,0,-999999999999999999.0);
-        // lf.insert(0,2,-999999999999999999.0);
-        // lf.insert(2,0,-999999999999999999.0);
         let recent_noise = 0.0;
-        LinearFunctionNoisy {lf, depth:1, success, difficulty, gateset, depth_slope, max_depth, recent_noise}
+
+        for i in 0..num_qubits {
+            for j in (i + 1)..num_qubits {
+                noise_model.entry((i, j)).or_insert(0.0);
+            }
+        }
+
+
+        LinearFunctionNoisy {lf, depth:1, success, noise_model, difficulty, gateset, depth_slope, max_depth, recent_noise}
     }
     pub fn solved(&self) -> bool {
         self.lf.solved()
@@ -211,39 +215,48 @@ impl Env for LinearFunctionNoisy {
         self.success = self.solved();
     }
 
-    fn step(&mut self, action: usize)  {
-        match self.gateset[action] {
+
+    fn step(&mut self, action: usize) {
+        // Get the gate by value (no reference)
+        let gate = self.gateset[action];
+
+        match gate {
             Gate::CX(q1, q2) => {
-                let mut noise = 0.0;
-                if self.depth == 0 {
-                    noise = -0.05;
-                } else {
-                    noise = -0.05;
-                }
+                let delta = -0.01;
+                let edge = if q1 < q2 { (q1, q2) } else { (q2, q1) };
+
+                self.noise_model
+                    .entry(edge)
+                    .and_modify(|n| *n += delta)
+                    .or_insert(delta);
+
                 self.lf.cx(q1, q2);
-                self.lf.addNoise(q1,q2,noise);
-                self.recent_noise = self.lf.getNoise(q1,q2);
-                
+
+                self.recent_noise = *self.noise_model.get(&edge).unwrap_or(&0.0);
             }
             Gate::SWAP(q1, q2) => {
-                let mut noise2 = 0.0;
-                if self.depth == 0 {
-                    noise2 = -0.05;
-                } else {
-                    noise2 = -0.05;
-                }
-                noise2 *= 3.0;
+                let delta = -0.03;
+                let edge = if q1 < q2 { (q1, q2) } else { (q2, q1) };
+
+                self.noise_model
+                    .entry(edge)
+                    .and_modify(|n| *n += delta)
+                    .or_insert(delta);
 
                 self.lf.swap(q1, q2);
-                self.lf.addNoise(q1, q2, noise2);
-                self.recent_noise = self.lf.getNoise(q1,q2);
-                
+
+                self.recent_noise = *self.noise_model.get(&edge).unwrap_or(&0.0);
             }
             _ => {}
-        }        
-        self.depth = self.depth.saturating_sub(1); // Prevent underflow
+        }
+
+        self.depth = self.depth.saturating_sub(1);
         self.success = self.solved();
     }
+
+
+
+
     
     fn masks(&self) -> Vec<bool> {
         vec![!self.success; self.num_actions()]
@@ -257,7 +270,7 @@ impl Env for LinearFunctionNoisy {
         if self.success {
             1.0 
         } else {
-            if self.depth == 0 { -0.5 + self.recent_noise} else { ((-0.5  + self.recent_noise )/self.max_depth as f32)}
+            if self.depth == 0 { -0.5 + (-0.5 * (1.0 - self.recent_noise))} else { ((-0.5 + (-0.5 * (1.0 - self.recent_noise)))/self.max_depth as f32)}
         }
     }
 
@@ -286,11 +299,12 @@ impl PyLinearFunctionNoisyEnv {
     pub fn new(
         num_qubits: usize,
         difficulty: usize,
+        noise_model: NoiseModel,
         gateset: Vec<Gate>,
         depth_slope: usize,
         max_depth: usize
     ) -> (Self, PyBaseEnv) {
-        let env = LinearFunctionNoisy::new(num_qubits, difficulty, gateset, depth_slope, max_depth);
+        let env = LinearFunctionNoisy::new(num_qubits, difficulty, noise_model,gateset, depth_slope, max_depth);
         let env = Box::new(env);
         (PyLinearFunctionNoisyEnv, PyBaseEnv { env })
     }
