@@ -31,11 +31,11 @@ pub struct LFState {
     size: usize,
 }
 
-enum Gate {
-    CX(usize, usize),
-    SWAP(usize, usize),
-    // other variants
-}
+// enum Gate {
+//     CX(usize, usize),
+//     SWAP(usize, usize),
+//     // other variants
+// }
 // Here are some functions to manipulate the internal representation
 impl LFState {
     // Constructor to create a new LinearFunction
@@ -218,10 +218,10 @@ impl Env for LinearFunctionNoisy {
 
     fn step(&mut self, action: usize) {
         // Get the gate by value (no reference)
-        let gate = self.gateset[action];
+        let gate = &self.gateset[action];
 
-        match gate {
-            Gate::CX(q1, q2) => {
+        match *gate {
+            Gate::CX(q1, q2) => { 
                 let delta = -0.01;
                 let edge = if q1 < q2 { (q1, q2) } else { (q2, q1) };
 
